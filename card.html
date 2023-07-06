@@ -1,0 +1,435 @@
+<html lang="es"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <meta name="generator" content="Hugo 0.88.1">
+    <title>_</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+body { display: flex; flex-direction: column; margin: 2rem auto; width: 80%; min-width: 500px; border:1px solid red; background: #1f6456;}
+
+#bank {display: flex; justify-content: center; height: 100px; margin: auto; /*border:1px solid green;*/ }
+.bg-text { font-size: 24px; position: absolute; font-weight: bold; top: 100px; letter-spacing: 10px; color: whitesmoke; z-index: -1;} 
+
+#players { display: flex; justify-content: center; width: 100%; border: 1px solid blue; }
+.player { display: flex; flex-direction: column;  align-items: center; justify-content: right; gap: 1rem; width: calc(100% / 7); border: 1px solid red; }
+.cardHolder {border: 2px solid whitesmoke; user-select: none; width: 40px; height: 60px; position: relative; }
+.betHolder { border: 2px solid green; border-radius: 50%;  width: 25px; height: 25px; }
+
+.card { display: flex; width: calc(9px * 3.5); height: calc(13px * 3.5); border: 1px solid #b7b7b7; border-radius: 5px; position: absolute; transform-style: preserve-3d; transition: all ease .2s; font-weight: bold; /*box-shadow: 1px 1px 3px 1px rgba(0,0,0,.2);*/ }
+.card:hover { transform: translateY(-15px);}
+.card > div { display: flex; position: absolute; width: 100%; height: 100%; border-radius: 4px; backrank-visibility: hidden; }
+.card > div:first-child { background: white; }
+.card > div:last-child { display: flex; align-content: center; justify-content: center; font-weight: bold; flex-wrap: wrap; transform: rotateY(180deg); }
+    
+.card.hide { transform: rotateY(180deg); }
+.r1 { position: absolute; font-size: 12px; left: 1; top: 2; }
+.r2 { display: flex; font-size: 23px; margin: auto; }
+.r3 { position: absolute; font-size: 12px; right: 1px; bottom: 0; transform: rotateZ(180deg); } 
+.dash:after { content: "_"; position: absolute; left: 0; } 
+.back { border: 3px white; padding: 5px 2px; border-radius: 4px; border-style: double; color: white; }
+
+#chips { display: flex; margin: auto; gap: 10px; padding: 5px; background-color: black; border-radius: 5px; }
+#chips span { border-radius: 50%; width: 25px; height: 25px; color: white; font-size: 13px; font-weight: bold; text-align: center; line-height: 21px; border: 2px dashed lightgrey; cursor: grab;  user-select: none; transition: transform ease .2s; }
+#chips span:hover { transform: scale(1.2); }
+
+#c5 { background-color: red; }
+#c10 { background-color: blue; }
+#c50 { background-color: green; }
+#c100 { background-color: #7a00ff; }
+
+.name { text-transform: uppercase; font-family: math; /* border: 1px solid brown; */ background: brown; border-radius: 4px;padding: 2px;  color: white; margin: auto; text-shadow: 0 0 2px rgba(0,0,0,.5);  min-width: 5rem;     width: fit-content; text-align: center; }
+</style>
+</head>
+<body>
+<div id="bank">
+  <div id="cards99" class="cardHolder"></div>
+  <span class="bg-text">BLACKJACK</span>
+</div>
+<div id="players"></div>
+<div id="chips">
+  <span id="c5">5</span>
+  <span id="c10">10</span>
+  <span id="c50">50</span>
+  <span id="c100">100</span>
+</div>
+<div class="functions">
+  <input id="start" type="button" value="INICIAR">
+  <input id="bet" type="button" value="APOSTAR" disabled>
+  <input id="clear" type="button" value="LIMPIAR" disabled>
+
+  <input id="hit" type="button" value="CARTA" disabled>
+  <input id="doble" type="button" value="DOBLAR" disabled>
+  <input id="split" type="button" value="DIVIDIR" disabled>
+  <input id="insurance" type="button" value="SEGURO" disabled>
+  <input id="stand" type="button" value="PLANTARSE" disabled>
+</div>
+<script>
+
+class Card {
+constructor(rank, suit, color='blue') {
+	this.value = rank==1?11:rank>9?10:rank
+	this.number = rank
+	this.rank = Deck.ranks[rank]?Deck.ranks[rank]:rank
+	this.suit = Deck.suits[suit].figure
+	this.color = Deck.suits[suit].color
+	this.back = color
+}
+}
+
+class Deck {
+static ranks = {1: 'A', 11: 'J', 12: 'Q', 13: 'K'}
+static suits = [
+  {name: 'Corazones', figure: '♥', color: 'red'}, 
+  {name: 'Tréboles', figure: '♣', color: 'black'}, 
+  {name: 'Diamantes', figure: '♦', color: 'red'}, 
+  {name: 'Picas', figure: '♠', color: 'black'}
+]
+
+constructor(decks) {
+  this.deck = Array(decks*52)
+  this.dead = Array()
+
+  for(let deck of range(0, decks-1)) {
+    for(let suit in Deck.suits) {
+      for(let rank of range(1, 13)) {
+        let index = (deck*52) + (suit*13) + rank-1;
+        //console.log(`DECK: ${deck}, SUIT: ${suit}, rank: ${rank}, INDEX: ${index}`) 
+        this.deck[index] = new Card(rank, suit, deck%2?'blue':'red')
+      }
+    }
+  }
+  this.shuffle()
+}
+
+shuffle() {
+  this.deck = this.deck.concat(this.dead)
+  this.dead = []
+  for(let card=0; card< this.deck.length; card++) {
+    let tempCard = this.deck[card]
+    let rand = Math.floor(Math.random() * this.deck.length)
+    this.deck[card] = this.deck[rand]
+    this.deck[rand] = tempCard
+  }
+}
+
+draw() {
+  let card = this.deck.pop()
+  this.dead.push( card )
+  return card
+}
+} ///
+
+class Player {
+constructor(id, name, money = 1000) {
+  this.id = id
+  this.name = name
+  this.money = money
+  this.hand = []
+  this.bet = [0, 0]
+	this.double = 0
+  this.insurance = 0
+  this.first = true
+}
+
+makeBet(value, hand=0) {
+  if (value>this.money) return false
+  this.money -= value
+  this.bet[hand] += value
+  return true
+}
+
+clearBet(hand=0) { 
+  this.money += this.bet[hand]
+  this.bet[hand] = 0
+}} ///
+
+class Game {
+constructor() {
+  this.deck = new Deck(6)
+  
+  this.buttons = {}
+  document.getElementById('start').addEventListener('click', event => {
+    if (event.target.value == 'REINICIAR') {
+    	this.buttons.clear.disabled = true
+      this.buttons.bet.disabled = true
+      this.buttons.hit.disabled = true
+      this.buttons.doble.disabled = true
+      this.buttons.split.disabled = true
+      this.buttons.insurance.disabled = true
+      document.getElementById('players').innerHTML = ''
+      document.querySelector('#bank > div').id = 'cards99'
+      document.querySelector('#bank > div').innerHTML = ''
+    }    
+    event.target.value = 'REINICIAR'
+    this.start()
+  });
+   
+  document.getElementById('chips').addEventListener('click', event => {
+    if (gameController.turn===null || gameController.stage!='bet' || event.target.id==='chips') return;
+    this.addBet(parseInt(event.target.innerHTML))
+  });
+
+  this.buttons.bet = document.getElementById('bet');
+  this.buttons.bet.addEventListener('click', event => {
+    if (!this.nextPlayer()) {
+      if (this.stage=='bet') {
+        this.stage = 'play'
+        gameController.deal()
+        this.buttons.clear.disabled = true
+        this.evaluate()
+      }
+      
+    }
+  });
+  
+  this.buttons.clear = document.getElementById('clear')
+  this.buttons.clear.addEventListener('click', event => this.clear())
+  this.buttons.insurance = document.getElementById('insurance')
+  this.buttons.insurance.addEventListener('click', event => this.insurance()) 
+  this.buttons.split = document.getElementById('split')
+  this.buttons.split.addEventListener('click', event => this.split())
+  this.buttons.doble = document.getElementById('doble')
+  this.buttons.doble.addEventListener('click', event => this.doble())  
+  this.buttons.hit = document.getElementById('hit')
+  this.buttons.hit.addEventListener('click', event => this.hit())
+  this.buttons.stand = document.getElementById('stand')
+  this.buttons.stand.addEventListener('click', event => this.stand())
+}
+
+start() {
+  console.log('function: start')
+  this.players = []
+  this.deck.shuffle()
+  this.turn = null
+  this.stage = 'off'
+  
+  this.buttons.bet.disabled = true
+  this.buttons.hit.disabled = true
+  this.buttons.doble.disabled = true
+  this.buttons.split.disabled = true
+  this.buttons.insurance.disabled = true
+  
+  while (true) {
+    let readPlayer = prompt("Ingrese nombre del jugador.")
+    if (readPlayer=='' || readPlayer==undefined) break
+    readPlayer = gameController.addPlayer(readPlayer)
+    if (!readPlayer) break
+    createPlayer(gameController.players[readPlayer-1])
+  }
+  if (!this.players.length) {
+    console.log('Partida cancelada. No hay jugadores.')
+    return;
+  }
+  
+  document.querySelector('#bank > div').id = `cards${this.players.length}`
+  this.players.push( new Player(this.players.length, 'Bank', null) )
+  this.bank = this.players[this.players.length-1]
+  this.deck.shuffle()
+  this.turn = 0 //this.players.length-1
+  this.stage = 'bet'
+  this.buttons.bet.disabled = false
+  this.buttons.clear.disabled = false
+}
+
+addPlayer(name, money=1000) {
+  console.warn('addPlayer')
+  if (this.players.length>7) return false
+  this.players.push( new Player(this.players.length, name, money) )
+  return this.players.length
+}
+
+addBet(value) {
+  console.warn('addBet')
+  if (this.players[this.turn].makeBet(value)) {
+    document.getElementById(`name${this.turn}`).innerHTML = this.players[this.turn].bet
+  } else {
+    console.warn('Saldo insuficiente')
+  }
+}
+
+nextPlayer() {
+  (this.turn<this.players.length-(this.stage=='bet'?2:0))?this.turn++:this.turn = 0
+  return this.turn!=0
+}
+
+
+deal() {
+  console.warn('deal')
+
+  this.buttons.bet.disable = true
+  this.buttons.clear.disable = true
+  this.buttons.hit.disable = false
+  this.buttons.doble.disable = false
+  this.buttons.split.disable = false
+  this.buttons.insurance.disable = false
+ 
+  for(let lap=0; lap<2; lap++) {
+    for(let player of this.players) {
+      let card = this.deck.draw()
+      player.hand.push(card)
+      createCard(player, card, (player.id==this.players.length-1) && lap)
+      //console.log(`Carta ${lap} de ${player.name}: ${card.rank} de ${card.suit}`)
+    }
+  }
+
+  this.cardsOrdering()
+  this.next = this.play
+}
+
+evaluate() {
+  this.buttons.hit.disabled = false
+
+	if (this.players[this.turn].first) {
+    // insurance
+    if (this.bank.hand[0].rank=='A' && this.players[this.turn].money>=this.players[this.turn].bet/2) 
+			this.buttons.insurance.disabled = false
+    
+    // split
+    if (this.players[this.turn].hand[0].number == this.players[this.turn].hand[1].number) 
+			this.buttons.split.disabled = false
+
+		// double
+		this.buttons.doble.disabled = false
+
+  } else {
+    this.buttons.insurance.disabled = true
+    this.buttons.split.disabled = true
+    this.buttons.doble.disabled = true
+  }
+  
+  let hand = 0, as = 0
+  this.players[this.turn].hand.forEach(card => { 
+    if (card.value==11)
+			as++
+    hand += card.value
+  })
+
+  if (hand>21) {
+    let tempHand = Math.ceil((hand-21)/10)
+    if (tempHand<=as)
+			hand -= 10*tempHand
+    
+  } else if (hand==21 && this.players[this.turn].first) {
+    console.log(`Blackjack del jugador ${this.players[this.turn].name}.`)
+		this.turn++
+  }
+
+  this.players[this.turn].first = false
+  console.warn(hand, as)
+  return hand>21
+}
+
+play() {
+  let player = this.players[this.turn]
+  console.log('function: play')
+  if (player.money >= player.bet) {
+    if (player.hand.length==2) {
+      console.log('Apostar doble?')
+      console.log(doble)
+    }
+    console.log('Pedir cart doble?')
+    console.log(doble)
+  }
+}
+
+hit() {
+  let player = this.players[this.turn]
+  let card = this.deck.draw()
+  player.hand.push( card )
+  createCard(player, card)
+  this.cardsOrdering()
+  if (this.evaluate()) {
+    this.players[this.turn].bet = 0
+    document.getElementById(`name${this.turn}`).innerHTML = 'PERDIÓ'
+    this.turn++
+  }
+  
+  console.log(`HIT. Carta ${player.hand.length} de ${player.name}: ${card.rank} de ${card.suit}`)
+}
+split() {}
+doble() {
+  let player = this.players[this.turn]
+  let card = this.deck.draw()
+  player.makeBet( player.bet )
+  player.hand.push( card )
+  console.log(`DOUBLE. Carta ${player.hand.length} de ${player.name}: ${card.rank} de ${card.suit}`)
+}
+clear() {}
+stand() {}
+insurance() {}
+
+cardsOrdering() {
+  for(let player of this.players) {
+    let pCards = document.getElementById(`cards${player.id}`)
+    
+    let sizeCardsX, sizeCardsY, offset;
+    if (player.id != this.players.length-1) {
+      sizeCardsX = 28*pCards.childElementCount
+      sizeCardsY = 8*pCards.childElementCount
+      offset = Array.isArray(player.hand[1])?player.hand.flat().length*15:0
+    } else { 
+      sizeCardsX = (32*pCards.childElementCount)+(4*(pCards.childElementCount-1))
+      sizeCardsY = 0
+      offset = 0
+    }
+    let lap=0
+    
+    for (let card of pCards.childNodes) {
+      let left, top;
+      if (player.id != this.players.length-1) {
+        left = 20-(sizeCardsX/2)+(24*lap)
+        top = 5+(sizeCardsY/2)-(12*lap++)
+      } else {
+        left = 20-(sizeCardsX/2)+(34*lap++)
+        top = 5
+      }
+      card.style.top = `${top}px`
+      card.style.left = `${left}px`
+    }
+  }
+}} ////////
+
+function* range(start, end) {
+ for (let i=start; i<=end; i++) yield i;
+}
+
+let gameController = new Game()
+console.log(gameController)
+
+const createPlayer = (playerData) => {
+  let player = document.createElement("div");
+    player.id = `p${playerData.id}`
+    player.classList.add('player')
+    player.innerHTML = `
+<div id="cards${playerData.id}" class="cardHolder"></div>
+<div id="bet${playerData.id}" class="betHolder"></div>
+<div id="name${playerData.id}">${playerData.name} / ${playerData.money}</div>`
+
+  document.getElementById("players").appendChild( player )
+}
+
+const createCard = (player, data, hide=false) => {
+  //console.log(data)
+  let card = document.createElement("div");
+    card.className = hide?'card hide':'card';
+    card.style.cssText = `color: ${data.color};`
+    card.innerHTML = `
+<div>
+  <span class="${data.rank==6?'r1 dash':data.rank==9?'r1 dash':'r1'}">${data.rank}</span>
+  <span class="r2">${data.suit}</span>
+  <span class="${data.rank==6?'r3 dash':data.rank==9?'r3 dash':'r3'}">${data.rank}</span>
+</div>
+<div style="background: ${data.back};">
+  <span class="back">L</span>
+</div>`
+  document.getElementById(`cards${player.id}`).appendChild( card )
+}
+
+</script>
+</body>
+</html>
