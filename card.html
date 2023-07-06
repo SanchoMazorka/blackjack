@@ -283,14 +283,15 @@ deal() {
 
 evaluate() {
   this.buttons.hit.disabled = false
+	const player = this.players[this.turn]
 
-	if (this.players[this.turn].first) {
+	if (player.first) {
     // insurance
-    if (this.bank.hand[0].rank=='A' && this.players[this.turn].money>=this.players[this.turn].bet/2) 
+    if (this.bank.hand[0].rank=='A' && player.money>=player.bet/2) 
 			this.buttons.insurance.disabled = false
     
     // split
-    if (this.players[this.turn].hand[0].number == this.players[this.turn].hand[1].number) 
+    if (player.hand[0].number == player.hand[1].number) 
 			this.buttons.split.disabled = false
 
 		// double
@@ -303,7 +304,7 @@ evaluate() {
   }
   
   let hand = 0, as = 0
-  this.players[this.turn].hand.forEach(card => { 
+  player.hand.forEach(card => { 
     if (card.value==11)
 			as++
     hand += card.value
@@ -314,12 +315,12 @@ evaluate() {
     if (tempHand<=as)
 			hand -= 10*tempHand
     
-  } else if (hand==21 && this.players[this.turn].first) {
-    console.log(`Blackjack del jugador ${this.players[this.turn].name}.`)
+  } else if (hand==21 && player.first) {
+    console.log(`Blackjack del jugador ${player.name}.`)
 		this.turn++
   }
 
-  this.players[this.turn].first = false
+  player.first = false
   console.warn(hand, as)
   return hand>21
 }
