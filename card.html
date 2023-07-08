@@ -22,7 +22,7 @@ body { display: flex; flex-direction: column; margin: 2rem auto; width: 80%; min
 
 .card { display: flex; width: calc(9px * 3.5); height: calc(13px * 3.5); border: 1px solid #b7b7b7; border-radius: 5px; position: absolute; transform-style: preserve-3d; transition: all ease .2s; font-weight: bold; /*box-shadow: 1px 1px 3px 1px rgba(0,0,0,.2);*/ }
 .card:hover { transform: translateY(-15px);}
-.card > div { display: flex; position: absolute; width: 100%; height: 100%; border-radius: 4px; backrank-visibility: hidden; }
+.card > div { display: flex; position: absolute; width: 100%; height: 100%; border-radius: 4px; backface-visibility: hidden; }
 .card > div:first-child { background: white; }
 .card > div:last-child { display: flex; align-content: center; justify-content: center; font-weight: bold; flex-wrap: wrap; transform: rotateY(180deg); }
     
@@ -81,7 +81,7 @@ constructor(rank, suit, color='blue') {
 }
 }
 
-class Deck {
+class Deck {  ////////////////////////////////////////////////////////////////
 static ranks = {1: 'A', 11: 'J', 12: 'Q', 13: 'K'}
 static suits = [
   {name: 'Corazones', figure: '♥', color: 'red'}, 
@@ -124,15 +124,17 @@ draw() {
 }
 } ///
 
-class Player {
+class Player {  ////////////////////////////////////////////////////////////////
 constructor(id, name, money = 1000) {
   this.id = id
   this.name = name
   this.money = money
-  this.hand = []
+  this.hand = [[],[]]
   this.bet = [0, 0]
 	this.double = 0
   this.insurance = 0
+	this.split = false
+	this.splitHand = 0
   this.first = true
 }
 
@@ -179,11 +181,10 @@ constructor() {
     if (!this.nextPlayer()) {
       if (this.stage=='bet') {
         this.stage = 'play'
-        gameController.deal()
+        this.deal()
         this.buttons.clear.disabled = true
         this.evaluate()
       }
-      
     }
   });
   
@@ -209,10 +210,12 @@ start() {
   this.stage = 'off'
   
   this.buttons.bet.disabled = true
+	this.buttons.clear.disabled = true
   this.buttons.hit.disabled = true
   this.buttons.doble.disabled = true
   this.buttons.split.disabled = true
   this.buttons.insurance.disabled = true
+	this.buttons.stand.disabled = true
   
   while (true) {
     let readPlayer = prompt("Ingrese nombre del jugador.")
@@ -247,8 +250,10 @@ addBet(value) {
   console.warn('addBet')
   if (this.players[this.turn].makeBet(value)) {
     document.getElementById(`name${this.turn}`).innerHTML = this.players[this.turn].bet
+		return true
   } else {
-    console.warn('Saldo insuficiente')
+    console.warn('Saldo insuficiente.')
+		return false
   }
 }
 
@@ -257,54 +262,35 @@ nextPlayer() {
   return this.turn!=0
 }
 
-
 deal() {
   console.warn('deal')
 
-  this.buttons.bet.disable = true
-  this.buttons.clear.disable = true
-  this.buttons.hit.disable = false
-  this.buttons.doble.disable = false
-  this.buttons.split.disable = false
-  this.buttons.insurance.disable = false
+  this.buttons.bet.disabled = false
+	this.buttons.clear.disabled = true
+  this.buttons.hit.disabled = true
+  this.buttons.doble.disabled = true
+  this.buttons.split.disabled = true
+  this.buttons.insurance.disabled = true
+	this.buttons.stand.disabled = true
  
   for(let lap=0; lap<2; lap++) {
     for(let player of this.players) {
       let card = this.deck.draw()
-      player.hand.push(card)
+      player.hand[0+player.splitHand].push(card)
       createCard(player, card, (player.id==this.players.length-1) && lap)
       //console.log(`Carta ${lap} de ${player.name}: ${card.rank} de ${card.suit}`)
     }
   }
 
   this.cardsOrdering()
-  this.next = this.play
+  //this.next = this.play
 }
 
 evaluate() {
-  this.buttons.hit.disabled = false
 	const player = this.players[this.turn]
 
-	if (player.first) {
-    // insurance
-    if (this.bank.hand[0].rank=='A' && player.money>=player.bet/2) 
-			this.buttons.insurance.disabled = false
-    
-    // split
-    if (player.hand[0].number == player.hand[1].number) 
-			this.buttons.split.disabled = false
-
-		// double
-		this.buttons.doble.disabled = false
-
-  } else {
-    this.buttons.insurance.disabled = true
-    this.buttons.split.disabled = true
-    this.buttons.doble.disabled = true
-  }
-  
   let hand = 0, as = 0
-  player.hand.forEach(card => { 
+  player.hand[0+player.splitHand].forEach(card => { 
     if (card.value==11)
 			as++
     hand += card.value
@@ -314,14 +300,38 @@ evaluate() {
     let tempHand = Math.ceil((hand-21)/10)
     if (tempHand<=as)
 			hand -= 10*tempHand
-    
-  } else if (hand==21 && player.first) {
-    console.log(`Blackjack del jugador ${player.name}.`)
-		this.turn++
   }
 
-  player.first = false
-  console.warn(hand, as)
+	if (player.first) {
+		player.first = false
+
+		// blackjack
+		if (hand==21) {
+    	console.log(`Blackjack del jugador ${player.name}.`)
+			player.money = player.bet[0]*1.5 + player.bet[0]
+			this.turn++
+			return false
+  	}
+
+    // insurance
+    if (this.bank.hand[0].rank=='A' && player.money>=player.bet[0]/2) 
+			this.buttons.insurance.disabled = false
+    
+    // split
+    if (player.hand[0][0].number == player.hand[0][1].number) {
+			console.log(player.hand)
+			this.buttons.split.disabled = false
+		}
+
+		// double
+		this.buttons.doble.disabled = false
+  }
+  
+	if (hand<=21) {
+		this.buttons.hit.disabled = false
+		this.buttons.hit.stand = false
+	}
+
   return hand>21
 }
 
@@ -341,10 +351,11 @@ play() {
 hit() {
   let player = this.players[this.turn]
   let card = this.deck.draw()
-  player.hand.push( card )
+  player.hand[0+player.splitHand].push( card )
   createCard(player, card)
   this.cardsOrdering()
-  if (this.evaluate()) {
+  
+	if (this.evaluate()) { //// falta calcular ganancia/perdida
     this.players[this.turn].bet = 0
     document.getElementById(`name${this.turn}`).innerHTML = 'PERDIÓ'
     this.turn++
@@ -352,7 +363,15 @@ hit() {
   
   console.log(`HIT. Carta ${player.hand.length} de ${player.name}: ${card.rank} de ${card.suit}`)
 }
-split() {}
+
+split() {
+	let player = this.players[this.turn]
+	player.hand[1].push( player.hand[0].pop() )
+	player.bet[1] = player.bet[0]
+	player.split = true
+	this.buttons.split.disabled = true
+}
+
 doble() {
   let player = this.players[this.turn]
   let card = this.deck.draw()
