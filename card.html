@@ -138,17 +138,26 @@ constructor(id, name, money = 1000) {
   this.first = true
 }
 
-makeBet(value, hand=0) {
+makeBet(value) {
   if (value>this.money) return false
   this.money -= value
-  this.bet[hand] += value
+  this.bet[this.handHandler] += value
   return true
 }
 
-clearBet(hand=0) { 
-  this.money += this.bet[hand]
-  this.bet[hand] = 0
-}} ///
+clearBet() { 
+  this.money += this.bet[this.handHandler]
+  this.bet[this.handHandler] = 0
+}
+
+retrieveBet() {
+	return this.bet[this.handHandler]
+}
+
+handHandler() {
+	return this.split?this.splitHand:0
+}
+} ///
 
 class Game {
 constructor() {
@@ -166,28 +175,18 @@ constructor() {
       document.getElementById('players').innerHTML = ''
       document.querySelector('#bank > div').id = 'cards99'
       document.querySelector('#bank > div').innerHTML = ''
-    }    
+    }
     event.target.value = 'REINICIAR'
     this.start()
   });
-   
+  
   document.getElementById('chips').addEventListener('click', event => {
-    if (gameController.turn===null || gameController.stage!='bet' || event.target.id==='chips') return;
+    if (this.turn===null || this.stage!='bet' || event.target.id==='chips') return;
     this.addBet(parseInt(event.target.innerHTML))
   });
 
   this.buttons.bet = document.getElementById('bet');
-  this.buttons.bet.addEventListener('click', event => {
-    if (!this.nextPlayer()) {
-      if (this.stage=='bet') {
-        this.stage = 'play'
-        this.deal()
-        this.buttons.clear.disabled = true
-        this.evaluate()
-      }
-    }
-  });
-  
+  this.buttons.bet.addEventListener('click', event => this.confirmBet());
   this.buttons.clear = document.getElementById('clear')
   this.buttons.clear.addEventListener('click', event => this.clear())
   this.buttons.insurance = document.getElementById('insurance')
@@ -208,7 +207,8 @@ start() {
   this.deck.shuffle()
   this.turn = null
   this.stage = 'off'
-  
+  this.bankTurn = false
+	
   this.buttons.bet.disabled = true
 	this.buttons.clear.disabled = true
   this.buttons.hit.disabled = true
@@ -235,12 +235,12 @@ start() {
   this.deck.shuffle()
   this.turn = 0 //this.players.length-1
   this.stage = 'bet'
-  this.buttons.bet.disabled = false
-  this.buttons.clear.disabled = false
+  this.buttons.bet.disabled = false //important
+  this.buttons.clear.disabled = false 
 }
 
 addPlayer(name, money=1000) {
-  console.warn('addPlayer')
+  console.log('addPlayer')
   if (this.players.length>7) return false
   this.players.push( new Player(this.players.length, name, money) )
   return this.players.length
@@ -248,13 +248,26 @@ addPlayer(name, money=1000) {
 
 addBet(value) {
   console.warn('addBet')
-  if (this.players[this.turn].makeBet(value)) {
-    document.getElementById(`name${this.turn}`).innerHTML = this.players[this.turn].bet
+	const player = this.players[this.turn]
+
+  if (player.makeBet(value)) {
+		document.getElementById(`name${this.turn}`).innerHTML = player.retrieveBet()
 		return true
-  } else {
-    console.warn('Saldo insuficiente.')
-		return false
   }
+	console.warn('Saldo insuficiente.')
+	return false
+}
+
+confirmBet() {
+	console.warn('confirmBet')
+	if (!this.nextPlayer()) {
+		if (this.stage=='bet') {
+			this.stage = 'play'
+			this.deal()
+			this.buttons.clear.disabled = true
+			this.evaluate()
+		}
+	}
 }
 
 nextPlayer() {
@@ -284,6 +297,11 @@ deal() {
 
   this.cardsOrdering()
   //this.next = this.play
+}
+
+turnHandler(reset=false) {
+	if (!reset) this.turn++
+	this.bankTurn = this.turn == this.players.length-1
 }
 
 evaluate() {
