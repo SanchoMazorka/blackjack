@@ -260,7 +260,7 @@ addBet(value) {
 
 confirmBet() {
 	console.warn('confirmBet')
-	if (!this.nextPlayer()) {
+	if (this.nextPlayer()) {
 		if (this.stage=='bet') {
 			this.stage = 'play'
 			this.deal()
@@ -271,8 +271,15 @@ confirmBet() {
 }
 
 nextPlayer() {
-  (this.turn<this.players.length-(this.stage=='bet'?2:0))?this.turn++:this.turn = 0
-  return this.turn!=0
+	console.log("nextPlayer");
+  (this.turn<this.players.length-(this.stage=='bet'?2:0))? this.turn++ : this.turn = 0
+	
+	if (this.turn == this.players.length-1 && this.stage == 'play') {
+		document.querySelector(`#cards${this.turn} > div.hide`).classList.remove('hide')
+	  this.evaluate(true)
+	}
+
+  return !this.turn
 }
 
 deal() {
@@ -299,12 +306,7 @@ deal() {
   //this.next = this.play
 }
 
-turnHandler(reset=false) {
-	if (!reset) this.turn++
-	this.bankTurn = this.turn == this.players.length-1
-}
-
-evaluate() {
+evaluate(bank=false) {
 	const player = this.players[this.turn]
 
   let hand = 0, as = 0
@@ -327,27 +329,37 @@ evaluate() {
 		if (hand==21) {
     	console.log(`Blackjack del jugador ${player.name}.`)
 			player.money = player.bet[0]*1.5 + player.bet[0]
-			this.turn++
+			this.nextPlayer()
 			return false
   	}
 
     // insurance
-    if (this.bank.hand[0].rank=='A' && player.money>=player.bet[0]/2) 
+    if (!bank && this.bank.hand[0].rank=='A' && player.money>=player.bet[0]/2) 
 			this.buttons.insurance.disabled = false
     
     // split
-    if (player.hand[0][0].number == player.hand[0][1].number) {
-			console.log(player.hand)
+    if (!bank && player.hand[0][0].number == player.hand[0][1].number) {
 			this.buttons.split.disabled = false
 		}
 
 		// double
-		this.buttons.doble.disabled = false
+		if (!bank)
+			(this.buttons.doble.disabled = false)
   }
+
+	if (!bank)
+		this.buttons.stand.disabled = false
   
-	if (hand<=21) {
+	if (!bank && hand<=21) {
 		this.buttons.hit.disabled = false
 		this.buttons.hit.stand = false
+	}
+
+	console.log('checkhand', hand)
+	if (bank && hand<17) {
+		setTimeout(() => this.hit(true), 1000)
+		
+		//this.evaluate()
 	}
 
   return hand>21
@@ -366,20 +378,21 @@ play() {
   }
 }
 
-hit() {
+hit(bank=false) {
   let player = this.players[this.turn]
   let card = this.deck.draw()
   player.hand[0+player.splitHand].push( card )
   createCard(player, card)
   this.cardsOrdering()
   
-	if (this.evaluate()) { //// falta calcular ganancia/perdida
-    this.players[this.turn].bet = 0
+	console.log(`HIT. Carta ${player.hand.length} de ${player.name}: ${card.rank} de ${card.suit}`)
+
+	if (this.evaluate(bank)) { //// falta calcular ganancia/perdida
+    this.players[this.turn].bet[0] = 0
     document.getElementById(`name${this.turn}`).innerHTML = 'PERDIÓ'
-    this.turn++
+    this.nextPlayer()
   }
   
-  console.log(`HIT. Carta ${player.hand.length} de ${player.name}: ${card.rank} de ${card.suit}`)
 }
 
 split() {
@@ -398,7 +411,10 @@ doble() {
   console.log(`DOUBLE. Carta ${player.hand.length} de ${player.name}: ${card.rank} de ${card.suit}`)
 }
 clear() {}
-stand() {}
+stand() {
+	//let player = this.players[this.turn]
+	this.nextPlayer()
+}
 insurance() {}
 
 cardsOrdering() {
